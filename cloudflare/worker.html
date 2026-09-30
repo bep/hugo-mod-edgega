@@ -8,7 +8,7 @@
 	"targetPath" "_worker.js"
 	"format" "esm"
 	"minify" true
-	"params" (dict "measurementID" $gaMeasurementID)
+	"params" (dict "edgega" (dict "measurementID" $gaMeasurementID))
 }}
 {{ (resources.Get "edgega/cloudflare/js/index.js" | js.Build $opts).Publish }}
 {{ (resources.FromString ".assetsignore" "_worker.js\n").Publish }}

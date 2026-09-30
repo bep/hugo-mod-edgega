@@ -1,5 +1,5 @@
-// Analytics beacon. All identity derivation happens server-side in the Worker
-// (see assets/workers/analytics.js): no cookies, no localStorage, no
+// Analytics beacon. All identity derivation happens server-side at the edge
+// (see handler.js): no cookies, no localStorage, no
 // third-party requests.
 // UTM params travel on the page URL for the landing hit only — nothing is
 // persisted client-side.
