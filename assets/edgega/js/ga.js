@@ -1,0 +1,24 @@
+// Analytics beacon. All identity derivation happens server-side in the Worker
+// (see assets/workers/analytics.js): no cookies, no localStorage, no
+// third-party requests.
+// UTM params travel on the page URL for the landing hit only — nothing is
+// persisted client-side.
+(() => {
+	const send = () => {
+		const data = JSON.stringify({
+			dl: location.href,
+			dt: document.title,
+			dr: document.referrer,
+		});
+		if (navigator.sendBeacon) {
+			navigator.sendBeacon('/a', new Blob([data], { type: 'application/json' }));
+		} else {
+			fetch('/a', { method: 'POST', body: data, keepalive: true }).catch(() => {});
+		}
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', send, { once: true });
+	} else {
+		send();
+	}
+})();

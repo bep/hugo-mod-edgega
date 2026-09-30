@@ -1,0 +1,8 @@
+{{ $opts := dict
+	"targetPath" "_worker.js"
+	"format" "esm"
+	"minify" (not hugo.IsDevelopment)
+	"params" (dict "measurementID" site.Params.gaMeasurementID)
+}}
+{{ (resources.Get "edgega/cloudflare/js/index.js" | js.Build $opts).Publish }}
+{{ (resources.FromString ".assetsignore" "_worker.js\n").Publish }}

@@ -1,0 +1,15 @@
+
+
+[[module.mounts]]
+	source = "assets"
+	target = "assets"
+
+[[module.mounts]]
+	source = "cloudflare"
+	target = "layouts/_partials/edgega/cloudflare"
+	files  = ["*.html"]
+
+[[module.mounts]]
+	source = "cloudflare"
+	target = "assets/edgega/cloudflare/js"
+	files  = ["*.js"]
