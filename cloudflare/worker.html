@@ -1,8 +1,14 @@
+{{ $gaMeasurementID := site.Params.edgega.gaMeasurementID }}
+{{ if not $gaMeasurementID }}
+	{{ errorf "Missing site.Params.edgega.gaMeasurementID" }}
+	{{ return }}
+{{ end }}	
+
 {{ $opts := dict
 	"targetPath" "_worker.js"
 	"format" "esm"
-	"minify" (not hugo.IsDevelopment)
-	"params" (dict "measurementID" site.Params.gaMeasurementID)
+	"minify" true
+	"params" (dict "measurementID" $gaMeasurementID)
 }}
 {{ (resources.Get "edgega/cloudflare/js/index.js" | js.Build $opts).Publish }}
 {{ (resources.FromString ".assetsignore" "_worker.js\n").Publish }}
