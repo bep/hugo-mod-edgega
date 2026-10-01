@@ -3,7 +3,10 @@
 // third-party requests.
 // UTM params travel on the page URL for the landing hit only — nothing is
 // persisted client-side.
+import * as params from '@params';
+
 (() => {
+	const path = params.path || '/a';
 	const send = () => {
 		const data = JSON.stringify({
 			dl: location.href,
@@ -11,9 +14,9 @@
 			dr: document.referrer,
 		});
 		if (navigator.sendBeacon) {
-			navigator.sendBeacon('/a', new Blob([data], { type: 'application/json' }));
+			navigator.sendBeacon(path, new Blob([data], { type: 'application/json' }));
 		} else {
-			fetch('/a', { method: 'POST', body: data, keepalive: true }).catch(() => {});
+			fetch(path, { method: 'POST', body: data, keepalive: true }).catch(() => {});
 		}
 	};
 	if (document.readyState === 'loading') {

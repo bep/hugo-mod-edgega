@@ -1,10 +1,5 @@
-{{/* Publish the Cloudflare Worker once. */}}
-{{ partialCached "./worker.html" . }}
-{{- with resources.Get "edgega/js/ga.js" }}
-	{{- $opts := dict
-		"minify" true
-	}}
-	{{- with . | js.Build $opts | fingerprint }}
-					<script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous" defer></script>
-	{{- end }}
-{{- end }}
+{{/* Convenience wrapper: publishes the Cloudflare Worker and renders the beacon script.
+Note that the Worker is only published if at least one rendered page calls this
+(or worker.html); see the README. */}}
+{{- partialCached "./worker.html" . }}
+{{- partialCached "edgega/script.html" . }}

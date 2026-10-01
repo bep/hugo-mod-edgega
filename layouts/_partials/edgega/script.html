@@ -1,0 +1,10 @@
+{{/* The analytics beacon. Platform-neutral; include it in <head> on every page. */}}
+{{- with resources.Get "edgega/js/ga.js" }}
+	{{- $opts := dict
+		"minify" true
+		"params" (dict "path" site.Params.edgega.path)
+	}}
+	{{- with . | js.Build $opts | fingerprint }}
+		<script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous" defer></script>
+	{{- end }}
+{{- end }}

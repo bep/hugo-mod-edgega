@@ -1,4 +1,4 @@
-// Platform-neutral analytics beacon handler: POST /a. Identity is derived
+// Platform-neutral analytics beacon handler: POST {path}. Identity is derived
 // server-side per request — no cookies, no storage, and the visitor's browser
 // never talks to Google:
 //
@@ -9,12 +9,15 @@
 // The salt secret never leaves the edge, so a client id cannot be reversed
 // or recomputed by anyone else, and after the UTC day rolls over, by us either.
 // Geo comes from the platform's edge geolocation; the IP itself is never
-// forwarded. Events go to GA4 via the Measurement Protocol (EU endpoint).
+// forwarded. Events go to GA4 via the Measurement Protocol.
 //
 // This file uses only Web-standard APIs. The platform adapters (e.g.
 // cloudflare/analytics.js) extract the client IP, geo, secrets and waitUntil
 // from their runtime and pass them in via opts:
 //
+//   path           beacon path, must match the one in ga.js (default /a)
+//   region         Measurement Protocol endpoint, 'eu' (default) or 'global'
+//   debug          enables ?debug=1 diagnostics; keep off in production
 //   ip             client IP address
 //   geo            { country, regionCode, city }, all optional
 //   measurementID  GA4 measurement id (a site param, baked in at build time)
@@ -22,15 +25,18 @@
 //   saltSecret     secret for the daily salt
 //   waitUntil      function(promise) extending the request lifetime
 
-const MP_URL = 'https://region1.google-analytics.com/mp/collect';
+const MP_URLS = {
+	eu: 'https://region1.google-analytics.com/mp/collect',
+	global: 'https://www.google-analytics.com/mp/collect',
+};
 const MP_DEBUG_URL = 'https://www.google-analytics.com/debug/mp/collect';
 
 const BOT_RE = /bot|crawl|spider|slurp|preview|scan|fetch|monitor|headless|lighthouse/i;
 
 export async function handle(request, opts) {
-	const { ip = '', geo = {}, measurementID, gaApiSecret, saltSecret, waitUntil } = opts;
+	const { path = '/a', region = 'eu', ip = '', geo = {}, measurementID, gaApiSecret, saltSecret, waitUntil } = opts;
 	const url = new URL(request.url);
-	if (url.pathname !== '/a') {
+	if (url.pathname !== path) {
 		return null;
 	}
 	if (request.method !== 'POST') {
@@ -38,10 +44,10 @@ export async function handle(request, opts) {
 	}
 
 	// Real beacon traffic is rejected silently (probes get no diagnostics),
-	// but ?debug=1 exists for humans with curl, so there it says why.
-	const debug = url.searchParams.has('debug');
-	const reject = (status, error) =>
-		debug ? Response.json({ error }, { status }) : new Response(null, { status });
+	// but with the debug option enabled, ?debug=1 exists for humans with curl,
+	// so there it says why.
+	const debug = opts.debug === true && url.searchParams.has('debug');
+	const reject = (status, error) => (debug ? Response.json({ error }, { status }) : new Response(null, { status }));
 
 	let body;
 	try {
@@ -54,12 +60,28 @@ export async function handle(request, opts) {
 		return reject(400, 'missing dl (page URL) field');
 	}
 
+	// Only count pages on this site, reported by a browser on this site:
+	// anything else is someone injecting pageviews into the GA property.
+	// Browsers always send Sec-Fetch-Site; non-browser clients can forge
+	// both checks, but then they can't spoof another site's pages.
+	let pageURL;
+	try {
+		pageURL = new URL(page);
+	} catch {
+		return reject(400, 'dl is not a valid URL');
+	}
+	if (pageURL.host !== url.host) {
+		return reject(403, `dl host ${pageURL.host} does not match ${url.host}`);
+	}
+	const fetchSite = request.headers.get('sec-fetch-site');
+	if (fetchSite && fetchSite !== 'same-origin') {
+		return reject(403, `cross-site beacon (sec-fetch-site: ${fetchSite})`);
+	}
+
 	// MP hits bypass GA's known-bot filtering, so drop the obvious ones here.
 	const ua = request.headers.get('user-agent') || '';
 	if (!ua || BOT_RE.test(ua)) {
-		return debug
-			? Response.json({ dropped: 'bot or empty user-agent', ua })
-			: new Response(null, { status: 204 });
+		return debug ? Response.json({ dropped: 'bot or empty user-agent', ua }) : new Response(null, { status: 204 });
 	}
 
 	// Deployed before secrets are set: accept and drop rather than error.
@@ -67,7 +89,7 @@ export async function handle(request, opts) {
 		const missing = [
 			['GA_API_SECRET (secret)', gaApiSecret],
 			['SALT_SECRET (secret)', saltSecret],
-			['edgega.gaMeasurementID (site param)', measurementID],
+			['edgega.ga_measurement_id (site param)', measurementID],
 		]
 			.filter(([, v]) => !v)
 			.map(([k]) => k);
@@ -89,15 +111,12 @@ export async function handle(request, opts) {
 	// under their standard names. Registered once per site as event-scoped
 	// custom dimensions in GA4 Admin, they slice sessions in Explorations.
 	const utm = {};
-	try {
-		const q = new URL(page).searchParams;
-		for (const k of ['utm_source', 'utm_medium', 'utm_campaign']) {
-			const v = q.get(k);
-			if (v) {
-				utm[k] = v.slice(0, 100); // GA4 param value limit
-			}
+	for (const k of ['utm_source', 'utm_medium', 'utm_campaign']) {
+		const v = pageURL.searchParams.get(k);
+		if (v) {
+			utm[k] = v.slice(0, 100); // GA4 param value limit
 		}
-	} catch {}
+	}
 
 	const payload = {
 		client_id: clientID,
@@ -126,7 +145,7 @@ export async function handle(request, opts) {
 		],
 	};
 
-	const endpoint = debug ? MP_DEBUG_URL : MP_URL;
+	const endpoint = debug ? MP_DEBUG_URL : MP_URLS[region] || MP_URLS.eu;
 	const send = fetch(`${endpoint}?measurement_id=${measurementID}&api_secret=${gaApiSecret}`, {
 		method: 'POST',
 		body: JSON.stringify(payload),

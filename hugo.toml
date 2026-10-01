@@ -1,4 +1,12 @@
 
+# Defaults, override in the site's [params.edgega].
+[params.edgega]
+	path   = "/a"
+	region = "eu"
+	debug  = false
+
+[module.hugoVersion]
+	min = "0.167.0"
 
 [[module.mounts]]
 	source = "assets"
@@ -13,3 +21,7 @@
 	source = "cloudflare"
 	target = "assets/edgega/cloudflare/js"
 	files  = ["*.js"]
+
+[[module.mounts]]
+	source = "layouts"
+	target = "layouts"
